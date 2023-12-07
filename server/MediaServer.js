@@ -48,8 +48,14 @@ class MediaServer {
   handleStreamRequest(req, res) {
     var filename = req.query.file
     var sessionName = req.query.name || slugify(Path.basename(filename, Path.extname(filename)))
-    if (this.sessions[sessionName]) {
-      return res.status(500).send('Oops, a session is already running with this name')
+    var streamSession = this.sessions[sessionName]
+    if (streamSession) {
+      var filePath = Path.join(streamSession.streamPath, "master.m3u8")
+      return res.sendFile(filePath, (err) => {
+        if (err) {
+          Logger.error('Oops failed to send file', err)
+        }
+      })
     }
     const requestIp = (typeof req.headers['x-forwarded-for'] === 'string' && req.headers['x-forwarded-for'].split(',').shift()) || req.connection.remoteAddress
     this.openStream(requestIp, res, sessionName, filename)

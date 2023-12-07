@@ -2,7 +2,7 @@ var fs = require('fs-extra')
 var Path = require('path')
 var hpg = require('hls-playlist-generator')
 
-function getPlaylistVariation(qualityOption, frameRate, hasAudioStream) {
+function getPlaylistVariation(sessionName, qualityOption, frameRate, hasAudioStream) {
   var resolution = `${qualityOption.resolution * (3 / 2)}x${qualityOption.resolution}`
   var totalBitrate = qualityOption.videoBitrate
   // TODO: Set correct codec strings
@@ -16,16 +16,16 @@ function getPlaylistVariation(qualityOption, frameRate, hasAudioStream) {
 
   // TODO: Set correct bandwidth & frame rate
   var variation = `#EXT-X-STREAM-INF:BANDWIDTH=${totalBitrate},AVERAGE-BANDWIDTH=${totalBitrate},VIDEO-RANGE=SDR,CODECS="${codecStrings.join(',')}",RESOLUTION=${resolution},FRAME-RATE=${frameRate}`
-  variation += `\n${qualityOption.name}.m3u8`
+  variation += `\n/${sessionName}/${qualityOption.name}.m3u8`
   return variation
 }
 
-function generateMasterPlaylist(masterPlaylistPath, encodingOptions) {
+function generateMasterPlaylist(sessionName, masterPlaylistPath, encodingOptions) {
   var m3u8 = '#EXTM3U'
 
   var frameRate = encodingOptions.encodeFrameRate
   encodingOptions.qualityOptions.forEach((qopt) => {
-    m3u8 += '\n' + getPlaylistVariation(qopt, frameRate, !!encodingOptions.fileInfo.audioStream)
+    m3u8 += '\n' + getPlaylistVariation(sessionName, qopt, frameRate, !!encodingOptions.fileInfo.audioStream)
   })
   // var resolution = encodingOptions.videoDisplaySize
   // var variation = `#EXT-X-STREAM-INF:BANDWIDTH=${encodingOptions.bitrate},AVERAGE-BANDWIDTH=3003000,VIDEO-RANGE=SDR,CODECS="${codecStrings.join(',')}",RESOLUTION=${resolution},FRAME-RATE=23.976`
@@ -68,8 +68,8 @@ function generateMasterPlaylist(masterPlaylistPath, encodingOptions) {
 //   })
 // }
 
-module.exports = (filepath, masterPlaylistPath, streamPath, encodingOptions) => {
-  return generateMasterPlaylist(masterPlaylistPath, encodingOptions).then(async (mSuccess) => {
+module.exports = (sessionName, filepath, masterPlaylistPath, streamPath, encodingOptions) => {
+  return generateMasterPlaylist(sessionName, masterPlaylistPath, encodingOptions).then(async (mSuccess) => {
     if (!mSuccess) return false
     // var hpgOptions = {
     //   segmentLength: encodingOptions.segmentLength,

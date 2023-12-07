@@ -172,7 +172,7 @@ class StreamSession extends EventsEmitter {
 
   async generatePlaylist() {
     await fs.ensureDir(this.streamPath)
-    return playlistGenerator(this.fileInfo.filepath, this.masterPlaylistPath, this.streamPath, this.encodingOptions)
+    return playlistGenerator(this.name, this.fileInfo.filepath, this.masterPlaylistPath, this.streamPath, this.encodingOptions)
   }
 
   async run() {
