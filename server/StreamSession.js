@@ -34,13 +34,6 @@ class StreamSession extends EventsEmitter {
 
     this.watcher = null
     this.initWatcher()
-
-    process.on('SIGINT', async () => {
-      Logger.log('[PROCESS] Signal interruption')
-      await this.cleanupMess('SIGINT')
-      Logger.log('[PROCESS] Exited gracefully')
-      process.exit(0)
-    })
   }
 
   get url() {
@@ -228,41 +221,6 @@ class StreamSession extends EventsEmitter {
     })
 
     this.ffmpeg.run()
-  }
-
-  deleteAllFiles() {
-    Logger.log('deleteAllFiles for', this.streamPath)
-    return fs.remove(this.streamPath).then(() => {
-      Logger.log('Deleted session data', this.streamPath)
-      return true
-    }).catch((err) => {
-      Logger.error('Failed to delete session data', err)
-      return false
-    })
-  }
-
-  close() {
-    this.cleanupMess('close')
-  }
-
-  cleanupMess(caller = 'unknown') {
-    Logger.info('Cleaning up mess', caller)
-    this.stop()
-    return this.deleteAllFiles()
-  }
-
-  stop() {
-    if (this.watcher) {
-      this.watcher.removeAllListeners()
-      this.watcher = null
-    }
-
-    this.emit('close')
-
-    if (!this.ffmpeg) return
-
-    Logger.log('Killing ffmpeg')
-    this.ffmpeg.kill('SIGKILL')
   }
 
   async restart(segmentNumber, qualityVariation = null) {
