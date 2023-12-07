@@ -5,7 +5,7 @@ const QualityOptions = [
   { name: '360p', resolution: 360, videoBitrate: 1200000, audioBitrate: 112000 },
   { name: '480p', resolution: 480, videoBitrate: 2400000, audioBitrate: 128000 },
   { name: '720p', resolution: 720, videoBitrate: 4000000, audioBitrate: 160000 },
-  { name: '1080p', resolution: 1080, videoBitrate: 7200000, audioBitrate: 224000 }
+  //{ name: '1080p', resolution: 1080, videoBitrate: 7200000, audioBitrate: 224000 }
 ]
 
 class EncodingOptions {
@@ -124,9 +124,9 @@ class EncodingOptions {
   }
 
   get videoTranscodeOptions() {
-    if (this.canDirectStreamVideo && this.selectedQuality.isDirectStream) {
-      return ['-c:v copy']
-    }
+    // if (this.canDirectStreamVideo && this.selectedQuality.isDirectStream) {
+    //   return ['-c:v copy']
+    // }
     var scaler = ''
     if (this.fileInfo.subtitleStream && this.hardcodeSubtitles) {
       scaler = `-filter_complex [0:2]scale=${this.encodeSize.width}x${this.encodeSize.height}[sub];[0:0]scale=\'trunc(min(max(iw,ih*dar),${this.encodeSize.width})/2)*2\':\'trunc(ow/dar/2)*2\'[base];[base][sub]overlay`
