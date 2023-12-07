@@ -35,113 +35,24 @@ class MediaServer {
   start() {
     var app = express()
     app.use(this.setHeaders)
-    app.use(express.static('public'))
-    app.set('views', './views')
-    app.engine('html', Sqrl.renderFile)
-    app.set('view engine', 'html')
-
-    // Opens session and returns path to playlist file, requires query ?file=<file_in_media_path>
-    app.get('/open', (req, res) => this.handleStreamRequest(req, res, false))
 
     // Opens session and shows hls.js player, requires query ?file=<file_in_media_path>
     app.get('/stream', (req, res) => this.handleStreamRequest(req, res, true))
 
-    // Returns parsed metadata of video from ffprobe, requires query ?file=<file_in_media_path>
-    app.get('/probe', this.handleProbeRequest.bind(this))
-
-    // Shows hls.js player with session
-    app.get('/watch/:session', this.handleWatchRequest.bind(this))
-
     // Used by the client players to fetch .m3u8 and .ts file segments
     app.get('/:session/:file', this.handleFileRequest.bind(this))
-
-    // Client server event to track when client disconnects
-    app.get('/events', this.handleClientEvent.bind(this))
-
-    // List of files in media directory
-    app.get('/', this.handleClientIndex.bind(this))
 
     app.listen(this.PORT, () => Logger.info('[SERVER] Listening on port', this.PORT))
   }
 
-  async handleClientIndex(req, res) {
-    var mediaPath = Path.resolve(this.MEDIA_PATH)
-    await fs.ensureDir(mediaPath)
-    // var files = await fs.readdir(mediaPath)
-    var files = await fetchMediaFiles(mediaPath)
-    res.render('index', {
-      title: 'Files',
-      mediaPath: mediaPath,
-      video_files: files
-    })
-  }
-
-  async handleClientEvent(req, res) {
-    const headers = {
-      'Content-Type': 'text/event-stream',
-      'Connection': 'keep-alive',
-      'Cache-Control': 'no-cache'
-    }
-    res.writeHead(200, headers)
-
-    const requestIp = (typeof req.headers['x-forwarded-for'] === 'string' && req.headers['x-forwarded-for'].split(',').shift()) || req.connection.remoteAddress
-    if (!requestIp) {
-      Logger.error('No IP', requestIp)
-      return
-    }
-
-    if (!this.clients[requestIp]) {
-      this.clients[requestIp] = {
-        id: requestIp,
-        response: res
-      }
-    } else {
-      this.clients[requestIp].response = res
-    }
-
-    req.on('close', () => {
-      Logger.info(`${requestIp} Connection closed`)
-      if (this.clients[requestIp]) {
-        var sessionName = this.clients[requestIp].session
-        if (sessionName && this.sessions[sessionName]) {
-          this.sessions[sessionName].close()
-        }
-      }
-      delete this.clients[requestIp]
-    })
-  }
-
-  async handleProbeRequest(req, res) {
-    var filename = req.query.file
-    var filepath = Path.resolve(this.MEDIA_PATH, filename)
-    var exists = await fs.pathExists(filepath)
-    if (!exists) {
-      return res.sendStatus(404)
-    }
-
-    var fileInfo = new FileInfo(filepath)
-    var successfullyProbed = await fileInfo.probe()
-    if (!successfullyProbed) {
-      Logger.error('Did not probe successfully')
-      return res.sendStatus(500)
-    }
-    res.json(fileInfo.metadata)
-  }
-
-  handleWatchRequest(req, res) {
-    var session = this.sessions[req.params.session]
-    if (!session) res.sendStatus(404)
-    res.send(clientGenerator.session(session))
-  }
-
-  handleStreamRequest(req, res, sendToPlayer) {
+  handleStreamRequest(req, res) {
     var filename = req.query.file
     var sessionName = req.query.name || slugify(Path.basename(filename, Path.extname(filename)))
     if (this.sessions[sessionName]) {
       return res.status(500).send('Oops, a session is already running with this name')
     }
     const requestIp = (typeof req.headers['x-forwarded-for'] === 'string' && req.headers['x-forwarded-for'].split(',').shift()) || req.connection.remoteAddress
-    this.openStream(requestIp, res, sessionName, filename, sendToPlayer)
+    this.openStream(requestIp, res, sessionName, filename)
   }
 
   async handleFileRequest(req, res) {
@@ -227,7 +138,7 @@ class MediaServer {
     })
   }
 
-  async openStream(requestIp, res, name, filename, sendToPlayer = false) {
+  async openStream(requestIp, res, name, filename) {
     var filepath = Path.resolve(this.MEDIA_PATH, filename)
     var exists = await fs.pathExists(filepath)
     if (!exists) {
@@ -255,23 +166,13 @@ class MediaServer {
     encodingOptions.numberOfSegments = await streamSession.generatePlaylist()
     streamSession.run()
 
-    streamSession.on('close', () => {
-      // Remove clients watching this session
-      var sessionClients = Object.values(this.clients).filter(client => client.session === name).map(c => c.id)
-      sessionClients.forEach((clientId) => {
-        delete this.clients[clientId]
-      })
-      delete this.sessions[name]
-    })
+    var filePath = Path.join(streamSession.streamPath, "master.m3u8")
 
-    if (sendToPlayer) {
-      res.render('player', {
-        title: 'Player',
-        session: streamSession
-      })
-    } else {
-      res.send(`Stream open: ${streamSession.url}`)
-    }
+    res.sendFile(filePath, (err) => {
+      if (err) {
+        Logger.error('Oops failed to send file', err)
+      }
+    })
   }
 }
 module.exports = MediaServer
